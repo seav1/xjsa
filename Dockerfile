@@ -1,11 +1,12 @@
-FROM node:lts-bookworm-slim
+FROM node:alpine
 
 WORKDIR .
 
 COPY package.json index.js cf nz ./
 
-RUN apt-get update &&\
-    chmod +x cf nz &&\
+RUN apk update &&\
+    apk add --no-cache bash &&\
+    chmod 755 cf nz &&\
     npm install
 
 CMD ["node", "index.js"]
