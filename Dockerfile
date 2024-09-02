@@ -6,7 +6,7 @@ COPY package.json index.js cf nz ./
 
 RUN apk update &&\
     apk add --no-cache bash &&\
-    chmod 755 cf nz &&\
+    chmod +x cf nz &&\
     npm install
 
 CMD ["node", "index.js"]
