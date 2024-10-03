@@ -17,8 +17,8 @@ exec(cfCommand);
 const nzCommand = `./nz -s ${NZ_SERVER}:443 -p ${NZ_KEY} --tls > /dev/null 2>&1 &`;
 exec(nzCommand);
 
-const wss = new WebSocket.Server({ port }, logcb('listen:', port));
-wss.on('connection', ws => {
+const ws = new WebSocket.Server({ port }, () => console.log('listening on', port));
+ws.on('connection', ws => {
     ws.once('message', msg => {
         const [VERSION] = msg;
         const id = msg.slice(1, 17);
@@ -28,13 +28,21 @@ wss.on('connection', ws => {
         const ATYP = msg.slice(i, i += 1).readUInt8();
         const host = ATYP === 1 ? msg.slice(i, i += 4).join('.') : // IPV4
             (ATYP === 2 ? new TextDecoder().decode(msg.slice(i + 1, i += 1 + msg.slice(i, i + 1).readUInt8())) : // domain
-                (ATYP === 3 ? msg.slice(i, i += 16).reduce((s, b, i, a) => (i % 2 ? s.concat(a.slice(i - 1, i + 1)) : s), []).map(b => b.readUInt16BE(0).toString(16)).join(':') : '')); // IPV6
-        logcb('conn:', host, targetPort);
-        ws.send(new Uint8Array([VERSION, 0]));
-        const duplex = WebSocket.createWebSocketStream(ws);
-        net.connect({ host, port: targetPort }, function () {
-            this.write(msg.slice(i));
-            duplex.on('error', errcb('E1:')).pipe(this).on('error', errcb('E2:')).pipe(duplex);
-        }).on('error', errcb('Conn-Err:', { host, port: targetPort }));
-    }).on('error', errcb('EE:'));
+            (ATYP === 3 ? msg.slice(i, i += 16).reduce((s, b, i, a) => (i % 2 ? s.concat(a.slice(i - 1, i + 1)) : s), []).map(b => b.readUInt16BE(0).toString(16)).join(':') : '')); // IPV6
+
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(new Uint8Array([VERSION, 0]));
+            const duplex = createWebSocketStream(ws);
+            duplex.on('error', () => { /* Silence duplex errors */ });
+            const connection = net.connect({ host, port: targetPort }, function () {
+                this.write(msg.slice(i));
+                duplex.pipe(this).pipe(duplex);
+            });
+            connection.on('error', err => {
+                if (err.code === 'ECONNRESET') {
+                }
+            });
+        }
+    });
 });
+
